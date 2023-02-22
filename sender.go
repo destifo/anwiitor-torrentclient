@@ -11,8 +11,8 @@ import (
 	"strconv"
 )
 
-func sendChunk(conn net.Conn, data []byte, start, end int) error {
-	_, err := conn.Write(data[start:end])
+func sendChunk(conn net.Conn, data []byte, start, end int, ChunkSize int) error {
+	_, err := conn.Write(data)
 	if err != nil {
 		return err
 	}
@@ -31,14 +31,14 @@ func sendChunk(conn net.Conn, data []byte, start, end int) error {
 	return nil
 }
 
-func sendData(conn net.Conn, data []byte) error {
+func sendData(conn net.Conn, data []byte, ChunkSize int) error {
 	// Send the length of the data
 	err := binary.Write(conn, binary.LittleEndian, int64(len(data)))
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < len(data); i += ChunkSize {
+	for i := 0; i < 1; i += ChunkSize {
 		j := i + ChunkSize
 		if j > len(data) {
 			j = len(data)
@@ -48,7 +48,7 @@ func sendData(conn net.Conn, data []byte) error {
 		retry := 0
 
 		for {
-			err := sendChunk(conn, data, i, j)
+			err := sendChunk(conn, data, i, j, ChunkSize)
 			if err == nil {
 				break
 			}
@@ -61,7 +61,7 @@ func sendData(conn net.Conn, data []byte) error {
 			}
 		}
 	}
-
+	log.Printf("%v", data)
 	return nil
 }
 
@@ -89,7 +89,7 @@ func handleSignal(conn net.Conn) (err error) {
 	return
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, torrentStruct Torrent) {
 	defer conn.Close()
 
 	// if err := handleSignal(conn); err != nil {
@@ -100,14 +100,14 @@ func handleConnection(conn net.Conn) {
 	// 	}
 	// }
 
-	data := []byte("124")
-	err := sendData(conn, data)
+	data := make([]byte, torrentStruct.Size)
+	err := sendData(conn, data, binary.Size(data))
 	if err != nil {
 		log.Printf("Error sending data: %v", err)
 	}
 }
 
-func StartListen() {
+func StartListen(torrentStruct Torrent) {
 	ln, err := net.Listen("tcp", ":6882")
 	if err != nil {
 		log.Fatalf("Error listening: %v", err)
@@ -122,6 +122,6 @@ func StartListen() {
 			continue
 		}
 
-		go handleConnection(conn)
+		go handleConnection(conn, torrentStruct)
 	}
 }
